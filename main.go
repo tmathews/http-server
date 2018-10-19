@@ -16,13 +16,10 @@ func main() {
 	var defaultFilename string
 
 	flag.IntVar(&port, "port", 8080, "Port to use")
-	flag.StringVar(&dir, "dir", "", "Relative or absolute directory location")
-	flag.StringVar(&defaultFilename, "default", "", "File to serve on non-file")
+	flag.StringVar(&dir, "dir", ".", "Relative or absolute directory location")
+	flag.StringVar(&defaultFilename, "default", "", "File to serve on non-file request")
 	flag.Parse()
 
-	if dir == "" {
-		dir = "."
-	}
 	if !filepath.IsAbs(dir) {
 		var err error
 		dir, err = filepath.Abs(dir)
