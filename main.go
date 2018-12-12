@@ -2,11 +2,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,7 +26,9 @@ func main() {
 		var err error
 		dir, err = filepath.Abs(dir)
 		if err != nil {
-			panic(err)
+			fmt.Println(err.Error())
+			os.Exit(1)
+			return
 		}
 	}
 
@@ -36,9 +40,14 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Logger())
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(func(c *gin.Context) {
 		p := path.Join(dir, c.Request.URL.Path)
-		if len(filepath.Ext(p)) > 0 {
+		ext := filepath.Ext(p)
+		if len(ext) > 0 {
+			if ext == ".wasm" {
+				c.Header("Content-Type", "application/wasm")
+			}
 			c.File(p)
 		} else if _, err := os.Stat(p); os.IsNotExist(err) && defaultFilename != "" {
 			c.File(defaultFilename)
