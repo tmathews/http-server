@@ -1,4 +1,4 @@
 # HTTP Server
 
-This application is a very simple http server written with the standard Go packages. It is meant to developer tool
+This application is a very simple http server written with the standard Go packages. It is meant to be a developer tool
 which helps you serve static files and single page apps.
