@@ -3,13 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
+	"log"
+	"mime"
+	"net/http"
 	"os"
-	"path"
 	"path/filepath"
-	"strconv"
-
-	"github.com/gin-contrib/gzip"
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -17,7 +16,7 @@ func main() {
 	var dir string
 	var defaultFilename string
 
-	flag.IntVar(&port, "port", 8080, "Port to use")
+	flag.IntVar(&port, "port", 80, "Port to use")
 	flag.StringVar(&dir, "dir", ".", "Relative or absolute directory location")
 	flag.StringVar(&defaultFilename, "default", "", "File to serve on non-file request")
 	flag.Parse()
@@ -37,24 +36,56 @@ func main() {
 		defaultFilename = ""
 	}
 
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()
-	r.Use(gin.Logger())
-	r.Use(gzip.Gzip(gzip.DefaultCompression))
-	r.Use(func(c *gin.Context) {
-		p := path.Join(dir, c.Request.URL.Path)
-		ext := filepath.Ext(p)
-		if len(ext) > 0 {
-			if ext == ".wasm" {
-				c.Header("Content-Type", "application/wasm")
-			}
-			c.File(p)
-		} else if _, err := os.Stat(p); os.IsNotExist(err) && defaultFilename != "" {
-			c.File(defaultFilename)
-		} else {
-			c.File(p)
+	handler := Handler{
+		Dir: dir,
+		Default: defaultFilename,
+	}
+	http.ListenAndServe(fmt.Sprintf(":%d", port), &handler)
+}
+
+type Handler struct {
+	Dir string
+	Default string
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	filename := filepath.Join(h.Dir, r.URL.Path)
+
+	// Do a check if we need to serve the default file instead for single page apps
+	if h.Default != "" {
+		if stat, err := os.Stat(filename); os.IsNotExist(err) || stat.IsDir() {
+			filename = h.Default
 		}
-		c.Next()
-	})
-	r.Run(":" + strconv.Itoa(port))
+	}
+
+	if ext := filepath.Ext(filename); len(ext) > 0 {
+		w.Header().Add("Content-Type", mime.TypeByExtension(ext))
+	}
+
+	if stat, err := os.Stat(filename); os.IsNotExist(err) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("File not found."))
+		return
+	} else if stat.IsDir() {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Directory check."))
+		return
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, file); err != nil {
+		log.Println(err)
+	}
 }
