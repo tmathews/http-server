@@ -40,7 +40,11 @@ func main() {
 		Dir: dir,
 		Default: defaultFilename,
 	}
-	http.ListenAndServe(fmt.Sprintf(":%d", port), &handler)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", port), &handler)
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
 }
 
 type Handler struct {
@@ -83,6 +87,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
+	defer file.Close()
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := io.Copy(w, file); err != nil {
